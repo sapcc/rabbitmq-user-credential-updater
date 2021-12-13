@@ -4,18 +4,18 @@ go 1.17
 
 require (
 	github.com/fsnotify/fsnotify v1.5.1
-	github.com/go-logr/logr v1.1.0
-	github.com/michaelklishin/rabbit-hole/v2 v2.11.0
-	github.com/onsi/ginkgo v1.16.4
+	github.com/go-logr/logr v1.2.1
+	github.com/michaelklishin/rabbit-hole/v2 v2.12.0
+	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.16.0
-	gopkg.in/ini.v1 v1.63.2
-	k8s.io/klog/v2 v2.20.0
+	gopkg.in/ini.v1 v1.66.2
+	k8s.io/klog/v2 v2.30.0
 )
 
 require (
 	github.com/nxadm/tail v1.4.8 // indirect
-	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781 // indirect
-	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
+	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d // indirect
+	golang.org/x/sys v0.0.0-20211210111614-af8b64212486 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
