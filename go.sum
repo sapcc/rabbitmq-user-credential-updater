@@ -44,8 +44,8 @@ github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfn
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/michaelklishin/rabbit-hole/v2 v2.14.0 h1:D45Z07ncPW5t6hl8H+Sv34IQR6qrG/tE9hwgHshugPg=
-github.com/michaelklishin/rabbit-hole/v2 v2.14.0/go.mod h1:o0k0caEjRjboLEylRXVR7aOkuI2vZ6gLXZ78JyonVkA=
+github.com/michaelklishin/rabbit-hole/v2 v2.15.0 h1:asuENwbu5UsgPBHKgOzHY6VVrjNePurjJoE+8+EWeLA=
+github.com/michaelklishin/rabbit-hole/v2 v2.15.0/go.mod h1:o0k0caEjRjboLEylRXVR7aOkuI2vZ6gLXZ78JyonVkA=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
