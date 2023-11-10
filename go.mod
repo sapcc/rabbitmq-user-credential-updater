@@ -9,7 +9,7 @@ require (
 	github.com/go-logr/logr v1.3.0
 	github.com/michaelklishin/rabbit-hole/v2 v2.15.0
 	github.com/onsi/ginkgo/v2 v2.13.0
-	github.com/onsi/gomega v1.29.0
+	github.com/onsi/gomega v1.30.0
 	gopkg.in/ini.v1 v1.67.0
 	k8s.io/klog/v2 v2.110.1
 )
