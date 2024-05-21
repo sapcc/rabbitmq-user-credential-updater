@@ -6,7 +6,7 @@ toolchain go1.21.2
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0
-	github.com/go-logr/logr v1.4.1
+	github.com/go-logr/logr v1.4.2
 	github.com/michaelklishin/rabbit-hole/v2 v2.16.0
 	github.com/onsi/ginkgo/v2 v2.17.3
 	github.com/onsi/gomega v1.33.1
