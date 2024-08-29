@@ -1,9 +1,9 @@
-FROM golang:1.21 as builder
+FROM golang:1.22 AS builder
 
 WORKDIR /go/src/app
 ADD . /go/src/app
 
-RUN go get -d -v ./...
+RUN go get -v ./...
 
 ENV CGO_ENABLED=0
 RUN go build -o /go/bin/app
