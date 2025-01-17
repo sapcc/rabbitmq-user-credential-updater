@@ -6,7 +6,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-logr/logr"
-	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
+	rabbithole "github.com/michaelklishin/rabbit-hole/v3"
 	"gopkg.in/ini.v1"
 )
 
