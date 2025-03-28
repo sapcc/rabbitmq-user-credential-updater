@@ -9,7 +9,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/go-logr/zapr v1.3.0
 	github.com/michaelklishin/rabbit-hole/v3 v3.1.0
-	github.com/onsi/ginkgo/v2 v2.23.0
+	github.com/onsi/ginkgo/v2 v2.23.3
 	github.com/onsi/gomega v1.36.2
 	go.uber.org/zap v1.27.0
 	gopkg.in/ini.v1 v1.67.0
