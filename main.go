@@ -4,40 +4,36 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
-	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
-
-	"github.com/fsnotify/fsnotify"
 	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	rabbithole "github.com/michaelklishin/rabbit-hole/v3"
 	"github.com/rabbitmq/default-user-credential-updater/updater"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"gopkg.in/ini.v1"
 )
 
 func main() {
-	var managementURI, caFile string
-	u := &updater.PasswordUpdater{}
+	var managementURI, caFile, adminFile, watchDir string
 
 	flag.StringVar(
-		&u.DefaultUserFile,
-		"default-user-file",
-		"/etc/rabbitmq/conf.d/11-default_user.conf",
-		"Absolute path to file containing default user username and (updated) password. "+
-			"Its directory will be watched for changes.")
-	flag.StringVar(
-		&u.AdminFile,
+		&adminFile,
 		"admin-file",
 		"/var/lib/rabbitmq/.rabbitmqadmin.conf",
 		"Absolute path to file used by rabbitmqadmin CLI. "+
 			"It contains RabbitMQ admin username (must be the same as default user username) and (old) password.")
+	flag.StringVar(
+		&watchDir,
+		"watch-dir",
+		"/etc/rabbitmq/secrets",
+		"Directory containing user secrets files in the format user_<id>_{username,password,tag}.")
 	flag.StringVar(
 		&managementURI,
 		"management-uri",
@@ -48,30 +44,20 @@ func main() {
 		"ca-file",
 		"/etc/rabbitmq-tls/ca.crt",
 		"This file contains the trusted certificate for RabbitMQ server authentication.")
-	klog.InitFlags(nil)
 	flag.Parse()
-	log := klogr.New().WithName("password-updater")
-	u.Log = log
 
-	rabbitClient, err := newRabbitClient(log, managementURI, caFile)
+	log := initLogging().WithName("password-updater")
+
+	rabbitAuthClient, err := newRabbitClient(log, managementURI, caFile)
 	if err != nil {
-		log.Error(err, "failed to create RabbitMQ client")
+		log.Error(err, "failed to create RabbitMQ auth client")
 		return
 	}
-	u.Rmqc = rabbitClient
-
-	// Watch the directory because the file gets re-created (i.e. first removed and then created)
-	// when password is updated by Vault agent and fsnotify will stop watching a re-created file.
-	watchDir := filepath.Dir(u.DefaultUserFile)
-	u.WatchDir = watchDir
-
-	watcher, err := fsnotify.NewWatcher()
+	rabbitAdminClient, err := newRabbitClient(log, managementURI, caFile)
 	if err != nil {
-		log.Error(err, "failed to create watcher")
+		log.Error(err, "failed to create RabbitMQ admin client")
 		return
 	}
-	defer watcher.Close()
-	u.Watcher = watcher
 
 	// Remove trailing new line (.rabbitmqadmin.conf has only one section).
 	ini.PrettySection = false
@@ -83,15 +69,14 @@ func main() {
 	// This channel will contain a value when our program terminates itself.
 	// This is preferred over calling os.Exit() because os.Exit() does not run deferred functions.
 	done := make(chan bool, 1)
-	u.Done = done
 
-	go u.HandleEvents()
-
-	log.V(1).Info("start watching", "directory", watchDir)
-	if err := watcher.Add(watchDir); err != nil {
-		log.Error(err, "cannot watch", "directory", watchDir)
+	passwordUpdater, err := updater.NewPasswordUpdater(adminFile, watchDir, done, log, rabbitAuthClient, rabbitAdminClient)
+	if err != nil {
+		log.Error(err, "Failed to initialize PasswordUpdater")
 		return
 	}
+
+	go passwordUpdater.HandleEvents()
 
 	select {
 	case sig := <-sigs:
@@ -101,9 +86,21 @@ func main() {
 	}
 }
 
+func initLogging() logr.Logger {
+	cfg := zap.NewProductionConfig()
+	cfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+	cfg.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	cfg.DisableStacktrace = true
+	zapLogger, err := cfg.Build()
+	if err != nil {
+		panic("failed to initialize zap logger: " + err.Error())
+	}
+	return zapr.NewLogger(zapLogger)
+}
+
 func newRabbitClient(log logr.Logger, managementURI, caFile string) (updater.RabbitClient, error) {
 	if strings.HasPrefix(managementURI, "https") {
-		caCert, err := ioutil.ReadFile(caFile)
+		caCert, err := os.ReadFile(caFile)
 		if err != nil {
 			log.Error(err, "failed to read CA file", "file", caFile)
 			return nil, err
@@ -141,6 +138,9 @@ func (w rabbitHoleClientWrapper) PutUser(username string, info rabbithole.UserSe
 }
 func (w rabbitHoleClientWrapper) Whoami() (*rabbithole.WhoamiInfo, error) {
 	return w.rabbitHoleClient.Whoami()
+}
+func (w rabbitHoleClientWrapper) UpdatePermissionsIn(vhost string, username string, permissions rabbithole.Permissions) (*http.Response, error) {
+	return w.rabbitHoleClient.UpdatePermissionsIn(vhost, username, permissions)
 }
 func (w rabbitHoleClientWrapper) GetUsername() string {
 	return w.rabbitHoleClient.Username
