@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	userFilePrefix   = "user_"
-	adminFileSection = "default"
-	adminUserID      = "admin"
+	userFilePrefix     = "user_"
+	passwordFileSuffix = "_password"
+	usernameFileSuffix = "_username"
+	tagFileSuffix      = "_tag"
+	adminFileSection   = "default"
+	adminUserID        = "admin"
 )
 
 var (

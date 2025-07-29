@@ -35,6 +35,10 @@ const (
 	defaultUsernameFile = "user_default_username"
 	defaultPasswordFile = "user_default_password"
 	defaultTagFile      = "user_default_tag"
+
+	testUsernameFile = "user_test_1_username"
+	testPasswordFile = "user_test_1_password"
+	testTagFile      = "user_test_1_tag"
 )
 
 var _ = Describe("EventHandler", func() {
@@ -338,6 +342,24 @@ var _ = Describe("EventHandler", func() {
 			})
 		})
 	})
+	When("user with underscore in userID is present", func() {
+		BeforeEach(func() {
+			// Touch the username file to trigger event
+			now := time.Now()
+			_ = os.Chtimes(filepath.Join(testWatchDir, "user_test_1_username"), now, now)
+		})
+		It("should result in a 'test_1' key in the credentials map", func() {
+			// Wait for the event handler to process
+			Eventually(func() bool {
+				_, ok := u.CredentialSpec["test_1"]
+				return ok
+			}).Should(BeTrue())
+			creds := u.CredentialSpec["test_1"]
+			Expect(creds.Username).To(Equal("test_1"))
+			Expect(creds.Password).To(Equal("testPassword"))
+			Expect(creds.Tag).To(Equal("testTag"))
+		})
+	})
 })
 
 func initLogging() logr.Logger {
@@ -368,6 +390,13 @@ func initConfigFiles() {
 	err = os.WriteFile(filepath.Join(path, defaultPasswordFile), []byte("pwd1"), 0644)
 	Expect(err).ToNot(HaveOccurred())
 	err = os.WriteFile(filepath.Join(path, defaultTagFile), []byte("mytag"), 0644)
+	Expect(err).ToNot(HaveOccurred())
+	// Test secrets.
+	err = os.WriteFile(filepath.Join(path, testUsernameFile), []byte("test_1"), 0644)
+	Expect(err).ToNot(HaveOccurred())
+	err = os.WriteFile(filepath.Join(path, testPasswordFile), []byte("testPassword"), 0644)
+	Expect(err).ToNot(HaveOccurred())
+	err = os.WriteFile(filepath.Join(path, testTagFile), []byte("testTag"), 0644)
 	Expect(err).ToNot(HaveOccurred())
 
 	cfg := ini.Empty()

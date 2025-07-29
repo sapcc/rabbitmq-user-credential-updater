@@ -59,14 +59,23 @@ func loadSecrets(watchDir string, log logr.Logger) (map[string]UserCredentials, 
 		}
 
 		name := file.Name()
-		remainder := name[len(userFilePrefix):]
-		parts := strings.SplitN(remainder, "_", 2)
-		if len(parts) != 2 {
+
+		var userID, key string
+		switch {
+		case strings.HasSuffix(name, usernameFileSuffix):
+			userID = strings.TrimSuffix(strings.TrimPrefix(name, userFilePrefix), usernameFileSuffix)
+			key = "username"
+		case strings.HasSuffix(name, passwordFileSuffix):
+			userID = strings.TrimSuffix(strings.TrimPrefix(name, userFilePrefix), passwordFileSuffix)
+			key = "password"
+		case strings.HasSuffix(name, tagFileSuffix):
+			userID = strings.TrimSuffix(strings.TrimPrefix(name, userFilePrefix), tagFileSuffix)
+			key = "tag"
+		default:
 			log.V(1).Info("ignoring file with unexpected name format", "file", name)
 			continue
 		}
 
-		userID, key := parts[0], parts[1]
 		content, err := os.ReadFile(filepath.Join(watchDir, name))
 		if err != nil {
 			log.Error(err, "failed to read secret file", "file", name)
