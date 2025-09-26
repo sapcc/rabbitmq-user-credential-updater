@@ -97,6 +97,13 @@ var _ = Describe("EventHandler", func() {
 				resp: &http.Response{Status: "204 No Content"},
 			},
 		}
+		fakeAdminClient.listUsersReturn = listUsersReturn{
+			users: []rabbithole.UserInfo{
+				{Name: "admin"},
+				{Name: "default"},
+				{Name: "test_1"},
+			},
+		}
 
 		watcher, err := fsnotify.NewWatcher()
 		Expect(err).ToNot(HaveOccurred())
@@ -360,6 +367,46 @@ var _ = Describe("EventHandler", func() {
 			Expect(creds.Tag).To(Equal("testTag"))
 		})
 	})
+
+	Context("when a user is removed from secrets", func() {
+		const userID = "test_2"
+		BeforeEach(func() {
+			usernameFile := fmt.Sprintf("user_%s_username", userID)
+			passwordFile := fmt.Sprintf("user_%s_password", userID)
+			tagFile := fmt.Sprintf("user_%s_tag", userID)
+
+			write(usernameFile, userID)
+			write(passwordFile, "pwd2")
+			write(tagFile, "management")
+
+			fakeAdminClient.listUsersReturn = listUsersReturn{
+				users: []rabbithole.UserInfo{
+					{Name: "admin"},
+					{Name: "default"},
+					{Name: userID},
+				},
+			}
+		})
+
+		It("removes the user from RabbitMQ when the credentials disappear", func() {
+			write(fmt.Sprintf("user_%s_username", userID), userID)
+			write(fmt.Sprintf("user_%s_password", userID), "pwd3")
+			write(fmt.Sprintf("user_%s_tag", userID), "management")
+
+			Consistently(func() int {
+				return fakeAdminClient.DeleteUserCallCount()
+			}).Should(BeZero())
+
+			Expect(os.Remove(filepath.Join(testWatchDir, fmt.Sprintf("user_%s_username", userID)))).To(Succeed())
+			Expect(os.Remove(filepath.Join(testWatchDir, fmt.Sprintf("user_%s_password", userID)))).To(Succeed())
+			Expect(os.Remove(filepath.Join(testWatchDir, fmt.Sprintf("user_%s_tag", userID)))).To(Succeed())
+			now := time.Now()
+			Expect(os.Chtimes(filepath.Join(testWatchDir, defaultPasswordFile), now, now)).To(Succeed())
+
+			Eventually(fakeAdminClient.DeleteUserCallCount, 5*time.Second, 100*time.Millisecond).Should(Equal(1))
+			Expect(fakeAdminClient.DeleteUserCalls[0].Username).To(Equal(userID))
+		})
+	})
 })
 
 func initLogging() logr.Logger {
@@ -425,14 +472,18 @@ type fakeRabbitClient struct {
 	// Track all calls with details
 	GetUserCalls             []GetUserCall
 	PutUserCalls             []PutUserCall
+	DeleteUserCalls          []DeleteUserCall
 	WhoamiCalls              []WhoamiCall
 	UpdatePermissionsInCalls []UpdatePermissionsInCall
+	ListUsersCalls           int
 
 	// Return values
 	getUserReturn             map[string]getUserReturn
 	putUserReturn             putUserReturn
+	deleteUserReturn          deleteUserReturn
 	whoamiReturn              whoamiReturn
 	updatePermissionsInReturn updatePermissionsInReturn
+	listUsersReturn           listUsersReturn
 }
 
 type GetUserCall struct {
@@ -442,6 +493,10 @@ type GetUserCall struct {
 type PutUserCall struct {
 	Username string
 	Settings rabbithole.UserSettings
+}
+
+type DeleteUserCall struct {
+	Username string
 }
 
 type UpdatePermissionsInCall struct {
@@ -460,6 +515,16 @@ type getUserReturn struct {
 type putUserReturn struct {
 	resp *http.Response
 	err  error
+}
+
+type deleteUserReturn struct {
+	resp *http.Response
+	err  error
+}
+
+type listUsersReturn struct {
+	users []rabbithole.UserInfo
+	err   error
 }
 type whoamiReturn struct {
 	info *rabbithole.WhoamiInfo
@@ -486,6 +551,32 @@ func (frc *fakeRabbitClient) PutUser(username string, info rabbithole.UserSettin
 		Settings: info,
 	})
 	return frc.putUserReturn.resp, frc.putUserReturn.err
+}
+
+func (frc *fakeRabbitClient) DeleteUser(username string) (*http.Response, error) {
+	frc.DeleteUserCalls = append(frc.DeleteUserCalls, DeleteUserCall{Username: username})
+	resp := frc.deleteUserReturn.resp
+	err := frc.deleteUserReturn.err
+	if resp == nil && err == nil {
+		resp = &http.Response{Status: "204 No Content"}
+	}
+	if err == nil {
+		filtered := make([]rabbithole.UserInfo, 0, len(frc.listUsersReturn.users))
+		for _, info := range frc.listUsersReturn.users {
+			if info.Name == username {
+				continue
+			}
+			filtered = append(filtered, info)
+		}
+		frc.listUsersReturn.users = filtered
+		delete(frc.getUserReturn, username)
+	}
+	return resp, err
+}
+
+func (frc *fakeRabbitClient) ListUsers() ([]rabbithole.UserInfo, error) {
+	frc.ListUsersCalls++
+	return frc.listUsersReturn.users, frc.listUsersReturn.err
 }
 
 func (frc *fakeRabbitClient) UpdatePermissionsIn(vhost string, username string, permissions rabbithole.Permissions) (*http.Response, error) {
@@ -524,6 +615,10 @@ func (frc *fakeRabbitClient) PutUserCallCount() int {
 	return len(frc.PutUserCalls)
 }
 
+func (frc *fakeRabbitClient) DeleteUserCallCount() int {
+	return len(frc.DeleteUserCalls)
+}
+
 func (frc *fakeRabbitClient) WhoamiCallCount() int {
 	return len(frc.WhoamiCalls)
 }
@@ -531,8 +626,11 @@ func (frc *fakeRabbitClient) WhoamiCallCount() int {
 func (frc *fakeRabbitClient) Reset() {
 	frc.GetUserCalls = nil
 	frc.PutUserCalls = nil
+	frc.DeleteUserCalls = nil
 	frc.WhoamiCalls = nil
 	frc.UpdatePermissionsInCalls = nil
+	frc.ListUsersCalls = 0
 	frc.Username = ""
 	frc.Password = ""
+	frc.listUsersReturn = listUsersReturn{}
 }

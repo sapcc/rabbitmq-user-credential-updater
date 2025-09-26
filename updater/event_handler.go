@@ -53,7 +53,9 @@ type RabbitClient interface {
 	// RabbitMQ Management API functions
 	GetUser(username string) (*rabbithole.UserInfo, error)
 	PutUser(username string, settings rabbithole.UserSettings) (*http.Response, error)
+	DeleteUser(username string) (*http.Response, error)
 	UpdatePermissionsIn(vhost string, username string, permissions rabbithole.Permissions) (*http.Response, error)
+	ListUsers() ([]rabbithole.UserInfo, error)
 	Whoami() (*rabbithole.WhoamiInfo, error)
 
 	// Credential management functions
@@ -111,6 +113,10 @@ func (u *PasswordUpdater) processSecrets() error {
 	u.CredentialSpec, err = loadSecrets(u.WatchDir, u.Log)
 	if err != nil {
 		return fmt.Errorf("failed to load credential state: %w", err)
+	}
+
+	if err := u.cleanupMissingUsers(u.CredentialSpec); err != nil {
+		return err
 	}
 
 	for userID, creds := range u.CredentialSpec {
@@ -183,6 +189,102 @@ func (u *PasswordUpdater) processSecrets() error {
 			}
 		}
 	}
+	return nil
+}
+
+func (u *PasswordUpdater) cleanupMissingUsers(spec map[string]UserCredentials) error {
+	adminSpec, hasAdmin := spec[adminUserID]
+	if !hasAdmin {
+		adminSpec = u.CredentialState[adminUserID]
+	}
+
+	adminPassword := adminSpec.Password
+	if adminPassword == "" && u.CredentialState[adminUserID].Password != "" {
+		adminPassword = u.CredentialState[adminUserID].Password
+	}
+	if adminPassword == "" {
+		return fmt.Errorf("admin credentials are missing; cannot reconcile RabbitMQ users")
+	}
+
+	allowedUsernames := make(map[string]struct{}, len(spec))
+	for _, cred := range spec {
+		if cred.Username != "" {
+			allowedUsernames[cred.Username] = struct{}{}
+		}
+	}
+
+	listUsersPath := "/api/users"
+	users, err := u.adminClient.ListUsers()
+	if err != nil {
+		handleErr := u.handleHTTPError(u.adminClient, err, http.MethodGet, listUsersPath, adminPassword)
+		if handleErr != nil {
+			return handleErr
+		}
+		users, err = u.adminClient.ListUsers()
+		if err != nil {
+			return fmt.Errorf("failed to list RabbitMQ users: %w", err)
+		}
+	}
+
+	adminUsername := adminSpec.Username
+	if adminUsername == "" {
+		adminUsername = u.adminClient.GetUsername()
+	}
+
+	for _, user := range users {
+		username := user.Name
+		if username == "" {
+			continue
+		}
+		if _, keep := allowedUsernames[username]; keep {
+			continue
+		}
+		if username == adminUsername {
+			u.Log.V(1).Info("admin user missing from secrets; skipping removal", "user", username)
+			continue
+		}
+		if username == spec[adminUserID].Username {
+			u.Log.V(1).Info("admin user missing from secrets; skipping removal", "user", username)
+			continue
+		}
+
+		pathUsers := "/api/users/" + username
+		deleted := false
+		for attempts := 0; attempts < 2 && !deleted; attempts++ {
+			resp, delErr := u.adminClient.DeleteUser(username)
+			if delErr == nil {
+				if resp != nil {
+					u.Log.V(2).Info("HTTP response", "method", http.MethodDelete, "path", pathUsers, "status", resp.Status)
+				}
+				deleted = true
+				break
+			}
+
+			if delErr.Error() == errNotFound {
+				u.Log.V(1).Info("user already absent from RabbitMQ", "user", username)
+				deleted = true
+				break
+			}
+
+			if handleErr := u.handleHTTPError(u.adminClient, delErr, http.MethodDelete, pathUsers, adminPassword); handleErr != nil {
+				return handleErr
+			}
+		}
+
+		if !deleted {
+			return fmt.Errorf("failed to delete user %s from RabbitMQ", username)
+		}
+
+		for userID, stateCred := range u.CredentialState {
+			if stateCred.Username == username {
+				delete(u.CredentialState, userID)
+				break
+			}
+		}
+
+		u.Log.V(1).Info("removed user from RabbitMQ server because credentials were removed", "user", username)
+	}
+
 	return nil
 }
 
