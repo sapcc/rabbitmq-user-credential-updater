@@ -9,7 +9,7 @@ require (
 	github.com/michaelklishin/rabbit-hole/v3 v3.5.0
 	github.com/onsi/ginkgo/v2 v2.28.2
 	github.com/onsi/gomega v1.39.1
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 	gopkg.in/ini.v1 v1.67.1
 )
 
