@@ -20,7 +20,7 @@ func NewPasswordUpdater(adminFile string, watchDir string, done chan<- bool, log
 
 	log.V(1).Info("start watching", "directory", watchDir)
 	if err := watcher.Add(watchDir); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, fmt.Errorf("failed to add directory %q to watcher: %w", watchDir, err)
 	}
 

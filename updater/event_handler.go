@@ -65,7 +65,11 @@ type RabbitClient interface {
 // HandleEvents continuously waits for file system events and processes secrets when any file
 // matching the expected pattern is changed.
 func (u *PasswordUpdater) HandleEvents() {
-	defer u.Watcher.Close()
+	defer func() {
+		if err := u.Watcher.Close(); err != nil {
+			u.Log.Error(err, "failed to close watcher")
+		}
+	}()
 
 	for {
 		select {
