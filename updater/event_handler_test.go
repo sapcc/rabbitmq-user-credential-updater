@@ -114,7 +114,7 @@ var _ = Describe("EventHandler", func() {
 	})
 
 	AfterEach(func() {
-		u.Watcher.Close()
+		_ = u.Watcher.Close()
 		initConfigFiles()
 	})
 
