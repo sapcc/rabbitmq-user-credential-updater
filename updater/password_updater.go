@@ -28,9 +28,12 @@ func NewPasswordUpdater(adminFile string, watchDir string, done chan<- bool, log
 	if err != nil {
 		return nil, fmt.Errorf("failed to load credential state: %w", err)
 	}
-	credentialSpec := make(map[string]UserCredentials)
+	credentialSpec := make(map[string]UserCredentials, len(credentialState))
+	for userID, cred := range credentialState {
+		credentialSpec[userID] = cred
+	}
 
-	return &PasswordUpdater{
+	updater := &PasswordUpdater{
 		AdminFile:       adminFile,
 		WatchDir:        watchDir,
 		Watcher:         watcher,
@@ -40,7 +43,19 @@ func NewPasswordUpdater(adminFile string, watchDir string, done chan<- bool, log
 		authClient:      authClient,
 		CredentialState: credentialState,
 		CredentialSpec:  credentialSpec,
-	}, nil
+	}
+
+	if adminCred, ok := credentialState[adminUserID]; ok {
+		updater.adminClient.SetUsername(adminCred.Username)
+		updater.adminClient.SetPassword(adminCred.Password)
+	}
+
+	if err := updater.cleanupMissingUsers(updater.CredentialSpec); err != nil {
+		watcher.Close()
+		return nil, fmt.Errorf("failed to cleanup RabbitMQ users: %w", err)
+	}
+
+	return updater, nil
 }
 
 // loadSecrets scans the watch directory and loads existing credential files

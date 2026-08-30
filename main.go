@@ -136,6 +136,12 @@ func (w rabbitHoleClientWrapper) GetUser(username string) (*rabbithole.UserInfo,
 func (w rabbitHoleClientWrapper) PutUser(username string, info rabbithole.UserSettings) (*http.Response, error) {
 	return w.rabbitHoleClient.PutUser(username, info)
 }
+func (w rabbitHoleClientWrapper) DeleteUser(username string) (*http.Response, error) {
+	return w.rabbitHoleClient.DeleteUser(username)
+}
+func (w rabbitHoleClientWrapper) ListUsers() ([]rabbithole.UserInfo, error) {
+	return w.rabbitHoleClient.ListUsers()
+}
 func (w rabbitHoleClientWrapper) Whoami() (*rabbithole.WhoamiInfo, error) {
 	return w.rabbitHoleClient.Whoami()
 }
